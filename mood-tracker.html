@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mood & Medication Tracker</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 0 20px;
+            background-color: #f5f5f5;
+        }
+        .card {
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            color: white;
+            font-weight: bold;
+            transition: opacity 0.2s;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        .calm { background-color: #22c55e; }
+        .mild { background-color: #eab308; }
+        .strong { background-color: #f97316; }
+        .intense { background-color: #ef4444; }
+        .clear { 
+            background-color: #6b7280;
+            margin-top: 20px;
+        }
+        .time-input {
+            padding: 8px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        .recent-entries {
+            margin-top: 20px;
+        }
+        .entry {
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        canvas {
+            margin: 20px 0;
+            max-height: 300px;
+            background-color: white;
+        }
+        h1 {
+            margin-top: 0;
+            color: #333;
+        }
+        h3 {
+            color: #444;
+            margin-bottom: 10px;
+        }
+        .section {
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Mood & Medication Tracker</h1>
+        
+        <div class="section">
+            <label for="medTime"><strong>Medication Time:</strong></label>
+            <input type="time" id="medTime" class="time-input">
+        </div>
+
+        <div class="section">
+            <h3>How are you feeling right now?</h3>
+            <div class="button-group">
+                <button class="calm" onclick="addEntry(1)">Calm</button>
+                <button class="mild" onclick="addEntry(2)">Mild Irritation</button>
+                <button class="strong" onclick="addEntry(3)">Strong Irritation</button>
+                <button class="intense" onclick="addEntry(4)">Intense Anger</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <canvas id="moodChart"></canvas>
+        </div>
+
+        <div class="recent-entries">
+            <h3>Recent Entries</h3>
+            <div id="entriesList"></div>
+        </div>
+
+        <button class="clear" onclick="clearData()">Clear All Data</button>
+    </div>
+
+    <script>
+        // Initialize variables
+        let chart;
+        let entries = [];
+        const medTimeInput = document.getElementById('medTime');
+        
+        // Load saved data when page loads
+        window.addEventListener('load', function() {
+            try {
+                const savedEntries = localStorage.getItem('moodEntries');
+                if (savedEntries) {
+                    entries = JSON.parse(savedEntries);
+                }
+                
+                const savedMedTime = localStorage.getItem('medTime');
+                if (savedMedTime) {
+                    medTimeInput.value = savedMedTime;
+                }
+                
+                updateDisplay();
+            } catch (e) {
+                console.error('Error loading saved data:', e);
+            }
+        });
+
+        // Save medication time when changed
+        medTimeInput.addEventListener('change', (e) => {
+            try {
+                localStorage.setItem('medTime', e.target.value);
+            } catch (e) {
+                console.error('Error saving medication time:', e);
+            }
+        });
+
+        function addEntry(level) {
+            try {
+                const now = new Date();
+                const entry = {
+                    timestamp: now.getTime(),
+                    timeString: now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                    level,
+                    date: now.toLocaleDateString()
+                };
+                entries.push(entry);
+                localStorage.setItem('moodEntries', JSON.stringify(entries));
+                updateDisplay();
+            } catch (e) {
+                console.error('Error adding entry:', e);
+                alert('Unable to save entry. Make sure you\'re not in private browsing mode.');
+            }
+        }
+
+        function clearData() {
+            if (confirm('Are you sure you want to clear all data?')) {
+                try {
+                    entries = [];
+                    localStorage.removeItem('moodEntries');
+                    localStorage.removeItem('medTime');
+                    medTimeInput.value = '';
+                    updateDisplay();
+                } catch (e) {
+                    console.error('Error clearing data:', e);
+                }
+            }
+        }
+
+        function updateDisplay() {
+            updateChart();
+            updateEntries();
+        }
+
+        function updateChart() {
+            const ctx = document.getElementById('moodChart').getContext('2d');
+            
+            if (chart) {
+                chart.destroy();
+            }
+
+            const chartData = entries.slice(-20); // Show last 20 entries for better visibility
+
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: chartData.map(e => e.timeString),
+                    datasets: [{
+                        label: 'Mood Level',
+                        data: chartData.map(e => e.level),
+                        borderColor: '#2563eb',
+                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                        tension: 0.1,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            min: 0,
+                            max: 4,
+                            ticks: {
+                                stepSize: 1,
+                                callback: function(value) {
+                                    return ['', 'Calm', 'Mild', 'Strong', 'Intense'][value];
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateEntries() {
+            const list = document.getElementById('entriesList');
+            list.innerHTML = entries.slice(-5).reverse().map(entry => 
+                `<div class="entry">${entry.date} ${entry.timeString} - Level ${entry.level} 
+                 (${['', 'Calm', 'Mild Irritation', 'Strong Irritation', 'Intense Anger'][entry.level]})</div>`
+            ).join('');
+        }
+    </script>
+</body>
+</html>
